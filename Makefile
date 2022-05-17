@@ -1,5 +1,5 @@
 SRCDIR=src
-OBJDIR=obj
+OBJDIR=build
 CXX=g++
 
 NO_COLOR=\x1b[0m

@@ -41,7 +41,7 @@ vector<int64_t> A_ar;
 
 //select the fingerprint function
 //                                        16-bhs  
-int fingerprint(int64_t key,int index,int a) {
+int fingerprint(int64_t key, int index, int a) {
     int s=bhs;
     int r=skewed;
     int range= (1<<(a-r+s))*((1<<r)-1); 
@@ -49,12 +49,14 @@ int fingerprint(int64_t key,int index,int a) {
     if  (index>0) range=range2;
 
     if (r==0) 
-	return hashg(key,20+index,1<<a); 
+	    return hashg(key,20+index,1<<a); 
     else
         return hashg(key,20+index,range);
 }
 
-int myrandom (int i) { return std::rand()%i;}
+int myrandom (int i) { 
+    return std::rand()%i;
+}
 
 
 int run()
@@ -109,10 +111,11 @@ int run()
         int num_fails=0;
         int64_t tot_i=(load_factor*cuckoo.get_size())/100;
         int64_t num_swap=0;
-	int64_t num_iter=0;
-	int64_t max_FF_FP=0;
-	int64_t min_FF_FP=INT_MAX;
-	int64_t tot_count=0;
+        int64_t num_iter=0;
+        int64_t max_FF_FP=0;
+        int64_t min_FF_FP=INT_MAX;
+        int64_t tot_count=0;
+
         for (int loop=0; loop<max_loop; loop++) {
             int64_t sample_FF_FP=0;
             cuckoo.clear();
@@ -345,7 +348,7 @@ void init(int argc, char* argv[])
                     printf("\nQuiet enabled\n");
                     quiet=true;
                     break;
-		case 'a':
+		        case 'a':
                     flag=1;
                     AS=atoi(argv[1]);
                     argc--;
@@ -411,7 +414,7 @@ void init(int argc, char* argv[])
         printf("Enable skewed fingerprint\n");
         printf("f0 range: %d/%d \n",(1<<skewed)-1,1<<skewed);
     }
-    max_loop= 250*(1<<((f-8)/2))/AS; 
+    max_loop= 250*(1<<((f-8)/2))/AS;
     printf("seed: %d\n",seed);
     printf("way: %d\n",num_way);
     printf("num_cells: %d\n",num_cells);

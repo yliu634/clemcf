@@ -340,7 +340,7 @@ void init(int argc, char* argv[])
                     printf("\nQuiet enabled\n");
                     quiet=true;
                     break;
-		case 'a':
+		        case 'a':
                     flag=1;
                     AS=atoi(argv[1]);
                     argc--;
