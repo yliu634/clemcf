@@ -129,7 +129,7 @@ int run()
                     for (int iii = 0;  iii <ht_size;  iii++){
                         pFF[i][iii]=make_pair(0,-1);
                     }
-
+            //
             for (int64_t i = 0;  i <tot_i;  i++)
             {
                 //int64_t key= rand();
@@ -151,14 +151,14 @@ int run()
                 {
                     verprintf(" Table full (key: %u)\n",key);
                     num_fails++;
-		    fail_insert=true;
+		            fail_insert=true;
                     break;
                 }
             }
             if (fail_insert) 
             {
-		    loop--;
-		    continue;
+                loop--;
+                continue;
             }
               
             if (!quiet) fprintf(stderr, "\n");
@@ -166,7 +166,8 @@ int run()
             printf("---------------------------\n");
             printf("items= %d\n",cuckoo.get_nitem());
             printf("load(%d)= %f \n",loop,cuckoo.get_nitem()/(0.0+cuckoo.get_size()));
-	    cuckoo.stat();
+	    
+            cuckoo.stat();
 
             //insert in ACF
             for (auto x: S_map)
@@ -206,14 +207,15 @@ int run()
 
                 //insert in A_map and in A_ar 
                 A_map[key] = line++;
-		A_ar.push_back(key);
+		        A_ar.push_back(key);
 
                 verprintf("insert key: %u \n", key);
                 if ((i % 1000) == 0) {
-			if(!quiet) fprintf(stderr, "loop: %d. Create the A set: %lu\r", loop, i);
+			        if(!quiet) fprintf(stderr, "loop: %d. Create the A set: %lu\r", loop, i);
                 }
             }
-	    if(!quiet) fprintf(stderr, "\n");
+
+	        if(!quiet) fprintf(stderr, "\n");
 
             //scramble  the A array
             //printf("A set of %lu elements created \n",A_ar.size());

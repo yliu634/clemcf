@@ -388,7 +388,7 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
                     return true;
                 }
         }
-
+    //present[i][ii][p]: i-hash func table, ii-slots, p-bucket;
         // finally play the cuckoo;
         int j = rand() % K;
         int jj = rand() % b;
