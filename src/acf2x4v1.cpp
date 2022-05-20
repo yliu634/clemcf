@@ -78,6 +78,11 @@ int run()
         }
     }
 
+    int8_t ** SS=new int8_t*[num_way];
+    for (int i = 0; i < num_way; i++) {
+        SS[i] = new int8_t[ht_size];
+    }
+
     printf("***:ACF:\n");
     printf("***:fingerprint bits: %d\n",f);
     printf("***:Buckets: %d\n",num_way*num_cells*ht_size);
@@ -109,6 +114,13 @@ int run()
                     for (int iii = 0;  iii <ht_size;  iii++){
                         FF[i][ii][iii]=-1;
                     }
+            //initialized seed table;
+            for (int i = 0; i<num_way; i++) {
+                for (int iii = 0; iii <ht_size; iii++){
+                    SS[i][iii] =0;
+                }
+            }    
+
 
             for (int64_t i = 0;  i <tot_i;  i++)
             {
@@ -153,7 +165,9 @@ int run()
             for (auto x: S_map)
             {
                 auto res= cuckoo.fullquery(x.first);
-                FF[std::get<1>(res)][std::get<2>(res)][std::get<3>(res)]=fingerprint(x.first,std::get<2>(res),f);
+                //FF[std::get<1>(res)][std::get<2>(res)][std::get<3>(res)]=fingerprint(x.first,std::get<2>(res),f);
+                FF[std::get<1>(res)][std::get<2>(res)][std::get<3>(res)] =
+                            fingerprint(x.first,(int) SS[std::get<1>(res)][std::get<3>(res)],f);
                 //verprintf("item %ld is in FF[%d][%d][%d] with fingerprint %d\n",key,std::get<1>(res),std::get<2>(res),std::get<3>(res),fingerprint(key));
             }//这是把原本所有cuckoo的东西都复制过来;
             printf("Inserted in ACF\n");
@@ -215,13 +229,15 @@ int run()
                 bool flagFF = false;
                 int false_i = -1;
                 int false_ii = -1;
+                int false_iii = -1;
                 for (int i = 0; i < num_way; i++) {
                     int p = hashg(key, i, ht_size);//桶
                     for (int ii = 0; ii < num_cells; ii++) {
-                        if (fingerprint(key, ii, f) == FF[i][ii][p]) {
+                        if (fingerprint(key, SS[i][p], f) == FF[i][ii][p]) {
                             flagFF = true;
                             false_i = i;
                             false_ii = ii;
+                            false_iii = p;
                         }
                     }
                 }
@@ -241,6 +257,14 @@ int run()
                     int64_t key1= cuckoo.get_key(false_i,false_ii,p);
                     int value1=cuckoo.query(key1);
                     int jj=false_ii;
+
+                    SS[false_i][p] ++;
+                    for (int i = 0; i < num_cells; i++) {
+                        int64_t key2= cuckoo.get_key(false_i,i,p);
+                        FF[false_i][false_ii][p] = fingerprint(key2, SS[false_i][p], f);
+                    }
+
+                    /*
                     while (jj==false_ii) jj=std::rand()%num_cells;
                     int64_t key2= cuckoo.get_key(false_i,jj,p);
                     int value2=cuckoo.query(key2);
@@ -258,7 +282,7 @@ int run()
                     }
                     cuckoo.direct_insert(key1,value1,false_i,jj);
                     FF[false_i][jj][p]=fingerprint(key1,jj,f);
-
+                    */
                 }
             }
             // consistency check after moving items!!!
