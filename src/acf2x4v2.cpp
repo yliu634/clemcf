@@ -1,4 +1,4 @@
-#include "HTmap.hpp"
+#include "HTmapv2.hpp"
 #include "utils.h"
 #include <string.h>
 #include <iostream>
@@ -35,6 +35,11 @@ vector<int64_t> A_ar;
 
 int fingerprint(int64_t key,int index,int f) {
     return hashg(key,20+index,1<<f);
+}
+
+uint8_t myCityHash(uint64_t key, uint8_t seed) 
+{
+    return (uint8_t)(CityHash<uint64_t>(key, (uint64_t) seed) & 0x3);
 }
 
 int myrandom (int i) { return std::rand()%i;}
@@ -163,9 +168,10 @@ int run()
                 bool flagFF = false;
                 for (int i = 0; i < num_way; i++) {
                     int p = hashg(x.first, i, ht_size);
-                    for (int ii = 0; ii < num_cells; ii++) {
-                        if (fingerprint(x.first, ii, f) == FF[i][ii][p]) {
-                            flagFF = true;
+                    int seed = ludo_seed[i][p];
+                    int ii = myCityHash(x, seed);
+                    if (fingerprint(x.first, ii, f) == FF[i][ii][p]) {
+                        flagFF = true;
                     }
                 }
                 if (!flagFF) {
@@ -173,9 +179,9 @@ int run()
                     exit(1);
                 }
             }
-            printf("1st Consistency passed\n");
-	        */
-
+            printf("1st Consistency passed\n");*/
+	        
+            
             //create A set
             for (int64_t i = 0;  i < A; i++) {
                 unsigned int key = (unsigned int) dis(gen);
@@ -242,6 +248,16 @@ int run()
                     int64_t key1= cuckoo.get_key(false_i,false_ii,p);
                     int value1=cuckoo.query(key1);
                     int jj=false_ii;
+
+                    int newseed = cuckoo.updateseed(false_i, p);
+
+                    for (int slot = 0; slot < num_cells; ++slot) {
+                        int64_t key2 = cuckoo.get_key(false_i,slot,p);
+                        //int value2 = cuckoo.query(key2);
+                        FF[false_i][slot][p] = fingerprint(key2,slot,f);
+                    }
+
+                    /*
                     while (jj==false_ii) jj=std::rand()%num_cells;
                     int64_t key2= cuckoo.get_key(false_i,jj,p);
                     int value2=cuckoo.query(key2);
@@ -259,7 +275,7 @@ int run()
                     }
                     cuckoo.direct_insert(key1,value1,false_i,jj);
                     FF[false_i][jj][p]=fingerprint(key1,jj,f);
-
+                    */
                 }
             }
             // consistency check after moving items!!!

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cstdint> // include this header for uint64_t
 #include <cstring>
+#include <unordered_map>
  
 using namespace std;
 
@@ -15,7 +16,7 @@ template <typename key_type, typename value_type> class HTIterator; // forward d
 template <typename key_type, typename value_type> class HTmap {
 		bool        ***present_table;    //  present flag memory
 		pair<key_type,value_type>  ***table;      // entries stored in the HT
-
+        uint8_t     **ludo_seed;
 		int m;                         // size of a table
 		int b;     	               // number of slots in a bucket
 		int K;     	               // number of way
@@ -32,6 +33,7 @@ template <typename key_type, typename value_type> class HTmap {
                 virtual ~HTmap();
                 void clear();
                 void expand();
+                int updateseed(int numway_i, int bucket_iii);
                 bool insert(key_type key,value_type value);
                 bool direct_insert(key_type key,value_type value,int i, int ii);
                 void stat();
@@ -152,7 +154,6 @@ HTIterator<key_type,value_type> HTIterator<key_type,value_type>::operator++(int)
  * Constructor
  */
 
-
 inline uint64 CityHash64WithSeed(int64_t key, uint64_t seed)
 {
  return CityHash64WithSeed((const char *)&key,8,seed);
@@ -180,45 +181,11 @@ uint64 CityHash(std::string key, uint64_t seed)
     return CityHash64WithSeed(key.c_str(),key.length(),seed);
 }
 
-
-/*int myhash(int64_t key, int i, int s)
+template <typename T>  
+uint8_t myCityHash(T key, uint8_t seed) 
 {
-    uint64_t  val0;
-    uint64_t  val1;
-    uint64_t   val;
-    int ss=s;
-
-    val0=CityHash64WithSeed(key,3015) % ss;
-    val1=CityHash64WithSeed(key,7793) % ss;
-    if (val1==val0) {
-        val1 = (val1 +1) % ss;
-    }
-    if (i==0) val=val0;
-    if (i==1) val=val1;
-    if (i>1)  val=CityHash64WithSeed(rot(key,i),2137*i) % ss;
-    return (val %ss);
+    return (uint8_t)(CityHash<T>(key, (uint64_t) seed) & 0x3);
 }
-
-
-
-int myhash(const std::pair<int64_t,int64_t> key, int i, int s)
-{
-    uint64_t  val0;
-    uint64_t  val1;
-    uint64_t   val;
-    int ss=s;
-
-    val0=CityHash64WithSeed(key,3015) % ss;
-    val1=CityHash64WithSeed(key,7793) % ss;
-    if (val1==val0) {
-        val1 = (val1 +1) % ss;
-    }
-    if (i==0) val=val0;
-    if (i==1) val=val1;
-    if (i>1)  val=CityHash64WithSeed(rot(key,i),2137*i) % ss;
-    return (val %ss);
-}*/
-
 
 template <typename T> int myhash(T key, int i, int s) {
     uint64_t  val0;
@@ -260,6 +227,15 @@ HTmap<key_type,value_type>::HTmap(int way, int buckets, int hsize,int t)//tå°±æ˜
           table[i][ii]= new pair<key_type,value_type>[m];
       }
   }
+
+  int8_t ** ludo_seed = new int8_t*[K];
+  for (int i = 0; i < K; i++) {
+      ludo_seed[i] = new int8_t[m];
+      for (int j = 0; j < b; j++) {
+          ludo_seed[i][j] = 0;
+      }
+  }
+
   clear();
 }
 
@@ -349,6 +325,57 @@ HTmap<key_type,value_type>::expand()
 }
 */
 
+
+
+/*
+ * Update Seed
+ */
+template <typename key_type, typename value_type>
+int HTmap<key_type,value_type>::updateseed(int numway_i, int bucket_iii)
+{
+    bool occupied[4];
+    int seed = ludo_seed[numway_i][bucket_iii];
+    for (int s = 0; s < 255; s++) {
+      //seed ++;
+      seed = (seed + 1) & 0xff;
+      *(uint32_t *) occupied = 0U;
+      if (seed == ludo_seed[numway_i][bucket_iii])
+        continue;
+      bool success = true;
+      
+      for (int slot = 0; slot < b; ++slot) {
+        if (present_table[numway_i][slot][bucket_iii]) {
+          uint8_t i = myCityHash<uint64_t>(table[numway_i][slot][bucket_iii].first, seed);
+          if (occupied[i]) {
+            success = false;
+            break;
+          } else { 
+            occupied[i] = true; 
+          }
+        }
+      }
+
+      if (success) {
+        unordered_map<uint64_t, int> pending_pairs;
+        ludo_seed[numway_i][bucket_iii] = seed;
+        for (int slot = 0; slot < b; ++slot) {
+            if (present_table[numway_i][slot][bucket_iii]) {
+                pending_pairs.insert(table[numway_i][slot][bucket_iii]);
+            }
+        }
+        for (auto it = pending_pairs.begin(); it != pending_pairs.end(); it++) {
+            uint64_t key = it->first;
+            uint8_t dslot = myCityHash<uint64_t>(key, seed);
+            table[numway_i][dslot][bucket_iii] = {key,it->second};
+        }
+        return seed;
+      }
+
+    }
+    return -1;
+}
+
+
 /*
  * Insert
  */
@@ -362,11 +389,19 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
     }
     for (int i = 0;  i <K;  i++){
         int p = myhash<key_type>(key,i,m);
+        int seed = ludo_seed[i][p];
+        int ii = myCityHash<key_type>(key, seed);
+        if ((present_table[i][ii][p]) && (table[i][ii][p].first== key)) {
+                table[i][ii][p].second=value;
+                return true;
+            }
+        /*
         for (int ii = 0;  ii <b;  ii++)
             if ((present_table[i][ii][p]) && (table[i][ii][p].first== key)) {
                 table[i][ii][p].second=value;
                 return true;
             }
+        */
     }
 
     // check if we need to grow the map
@@ -380,6 +415,17 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
         // search for empty places
         for (int i = 0;  i <K;  i++){
             int p = myhash<key_type>(key,i,m);
+            int seed = ludo_seed[i][p];
+            int ii = myCityHash<key_type>(key, seed);
+            if (!present_table[i][ii][p]) {
+                present_table[i][ii][p] = true;
+                table[i][ii][p]={key,value};
+                updateseed(i, p);
+                num_item++;
+                return true;
+            }
+            //updateseed(i, p);
+            /*
             for (int ii = 0;  ii <b;  ii++)
                 if (!present_table[i][ii][p]) {  //insert in an empty place
                     present_table[i][ii][p] = true;
@@ -387,6 +433,7 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
                     num_item++;
                     return true;
                 }
+            */
         }
         //present[i][ii][p]: i-hash func table, ii-slots, p-bucket;
         // finally play the cuckoo;
@@ -396,6 +443,7 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
         key_type new_key = table[j][jj][p].first;
         value_type new_value = table[j][jj][p].second;
         table[j][jj][p]={key,value};
+        updateseed(j, p);
         key=new_key;
         value=new_value;
     }
@@ -454,8 +502,9 @@ value_type& HTmap<key_type,value_type>::operator[](key_type key) {
     }
     for (int i = 0;  i <K;  i++){
         int p = myhash<key_type>(key,i,m);
-        for (int ii = 0;  ii <b;  ii++)
-            if ((present_table[i][ii][p]) &&  (table[i][ii][p].first== key)) {
+        int seed = ludo_seed[i][p];
+        int ii = myCityHash<key_type>(key, seed);
+        if ((present_table[i][ii][p]) && (table[i][ii][p].first== key)) {
                 return table[i][ii][p].second;
             }
     }
@@ -472,14 +521,20 @@ value_type HTmap<key_type,value_type>::query(key_type key)
 {
     if ((key==victim_key) && (victim_flag)) return victim_value;
     for (int i = 0;  i <K;  i++) {
-        for (int ii = 0;  ii <b;  ii++){
+        //for (int ii = 0;  ii <b;  ii++){
             int p = myhash<key_type>(key,i,m);
             //verprintf("query item in table[%d][%d] for p=%d and f=%d\n",p,jj,p,fingerprint);
             //verprintf("result is: %d\n",table[p][jj]);
-            if ((present_table[i][ii][p]) &&  (table[i][ii][p].first== key)) {
+            int seed = ludo_seed[i][p];
+            int ii = myCityHash<key_type>(key, seed);
+            if ((present_table[i][ii][p]) && (table[i][ii][p].first== key)) {
                 return table[i][ii][p].second;
             }
-        }
+            /*
+            if ((present_table[i][ii][p]) &&  (table[i][ii][p].first== key)) {
+                return table[i][ii][p].second;
+            }*/
+        //}
     }
     return victim_value;
 }
@@ -493,16 +548,23 @@ tuple<value_type,int,int,int,int> HTmap<key_type,value_type>::fullquery(key_type
     int num_lookup=0;
     if ((key==victim_key) && (victim_flag)) return std::make_tuple(victim_value,-2,-2,-2,0);
     for (int i = 0;  i <K;  i++) {
-        for (int ii = 0;  ii <b;  ii++){
+        
             num_lookup++;
             int p = myhash<key_type>(key,i,m);
             //verprintf("query item in table[%d][%d] for p=%d and f=%d\n",p,jj,p,fingerprint);
             //printf("query item in table[%d][%d][%d]=%d\n",i,ii,p);
             //verprintf("result is: %d\n",table[p][jj]);
-            if ((present_table[i][ii][p]) &&  (table[i][ii][p].first== key)) {
+            int seed = ludo_seed[i][p];
+            int ii = myCityHash<key_type>(key, seed);
+            if ((present_table[i][ii][p]) && (table[i][ii][p].first== key)) {
+                //table[i][ii][p].second=value;
                 return make_tuple(table[i][ii][p].second,i,ii,p,num_lookup);
             }
-        }
+            /*
+            if ((present_table[i][ii][p]) &&  (table[i][ii][p].first== key)) {
+                return make_tuple(table[i][ii][p].second,i,ii,p,num_lookup);
+            }*/
+        
     } 
     return std::make_tuple(victim_value,-1,-1,-1,num_lookup);
 }
@@ -532,13 +594,15 @@ int HTmap<key_type,value_type>::count(key_type key)
     }
     verprintf("query item in HT \n");
     for (int i = 0;  i <K;  i++) {
-        for (int ii = 0;  ii <b;  ii++){
+        //for (int ii = 0;  ii <b;  ii++){
             int p = myhash<key_type>(key,i,m);
+            int seed = ludo_seed[i][p];
+            int ii = myCityHash<key_type>(key, seed);
             verprintf("query item in table[%d][%d] for p=%d\n",i,ii,p);
             if ((present_table[i][ii][p]) &&  (table[i][ii][p].first== key)) {
                 return 1;
             }
-        }
+        //}
     }
     return 0;
 }
@@ -550,9 +614,11 @@ bool HTmap<key_type,value_type>::remove(key_type key) {
             victim_flag=false;
             return true;
     }
-    for (int i = 0;  i <K;  i++)
-        for (int ii = 0;  ii <b;  ii++){
+    for (int i = 0;  i <K;  i++) {
+        //for (int ii = 0;  ii <b;  ii++){
             int p = myhash<key_type>(key,i,m);
+            int seed = ludo_seed[i][p];
+            int ii = myCityHash<key_type>(key, seed);
             if ((present_table[i][ii][p]) &&  (table[i][ii][p].first== key)) {
                 //printf("remove key %ld from [%d][%d]\n",key,i,ii);
                 present_table[i][ii][p] = false;
