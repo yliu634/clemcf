@@ -335,21 +335,21 @@ int HTmap<key_type,value_type>::updateseed(int numway_i, int bucket_iii)
 {
     bool occupied[4];
     int seed = ludo_seed[numway_i][bucket_iii];
-    for (int s = 0; s < 255; s++) {
+    for (int s = 0; s < 255; s++) {     // loop 255 times instead of really from 0 -> 255.
       //seed ++;
       seed = (seed + 1) & 0xff;
-      *(uint32_t *) occupied = 0U;
+      *(uint32_t *) occupied = 0U;  // memset zero to all of them.
       if (seed == ludo_seed[numway_i][bucket_iii])
         continue;
       bool success = true;
       
       for (int slot = 0; slot < b; ++slot) {
-        if (present_table[numway_i][slot][bucket_iii]) {
-          uint8_t i = myCityHash<uint64_t>(table[numway_i][slot][bucket_iii].first, seed);
-          if (occupied[i]) {
+        if (present_table[numway_i][slot][bucket_iii]) {    // premice is you exists.
+          uint8_t i = myCityHash<uint64_t>(table[numway_i][slot][bucket_iii].first, seed); // calculate the position of first.
+          if (occupied[i]) {    // find we have key mapping to this place.
             success = false;
             break;
-          } else { 
+          } else {  
             occupied[i] = true; 
           }
         }
@@ -361,12 +361,14 @@ int HTmap<key_type,value_type>::updateseed(int numway_i, int bucket_iii)
         for (int slot = 0; slot < b; ++slot) {
             if (present_table[numway_i][slot][bucket_iii]) {
                 pending_pairs.insert(table[numway_i][slot][bucket_iii]);
-            }
+                present_table[numway_i][slot][bucket_iii] = false;
+            }   // insert these pairs in to this pending list.
         }
         for (auto it = pending_pairs.begin(); it != pending_pairs.end(); it++) {
             uint64_t key = it->first;
             uint8_t dslot = myCityHash<uint64_t>(key, seed);
-            table[numway_i][dslot][bucket_iii] = {key,it->second};
+            table[numway_i][dslot][bucket_iii] = {key,it->second}; //directly insert it.
+            present_table[numway_i][dslot][bucket_iii] = true;
         }
         return seed;
       }
@@ -386,11 +388,11 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
     if ((key==victim_key) && (victim_flag)) {
         victim_value=value;
         return true;
-    }
-    for (int i = 0;  i <K;  i++){
-        int p = myhash<key_type>(key,i,m);
-        int seed = ludo_seed[i][p];
-        int ii = myCityHash<key_type>(key, seed);
+    }   // insert cannot support update.
+    for (int i = 0;  i <K;  i++) {
+        int p = myhash<key_type>(key,i,m);  // p is bucket index.
+        int seed = ludo_seed[i][p]; 
+        int ii = myCityHash<key_type>(key, seed);   
         if ((present_table[i][ii][p]) && (table[i][ii][p].first== key)) {
                 table[i][ii][p].second=value;
                 return true;
@@ -409,14 +411,14 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
     //    HTmap<key_type,value_type>::expand();
     //}
 
-    // try cuckoo
+    // try cuckoo. fine
     for (int t = 0;  t <= tmax;  t++) {
 
         // search for empty places
         for (int i = 0;  i <K;  i++){
             int p = myhash<key_type>(key,i,m);
             int seed = ludo_seed[i][p];
-            int ii = myCityHash<key_type>(key, seed);
+            int ii = myCityHash<key_type>(key, seed);   //
             if (!present_table[i][ii][p]) {
                 present_table[i][ii][p] = true;
                 table[i][ii][p]={key,value};
@@ -424,7 +426,7 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
                 num_item++;
                 return true;
             }
-            //updateseed(i, p);
+
             /*
             for (int ii = 0;  ii <b;  ii++)
                 if (!present_table[i][ii][p]) {  //insert in an empty place

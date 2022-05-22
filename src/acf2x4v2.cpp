@@ -38,7 +38,7 @@ int fingerprint(int64_t key,int index,int f) {
 }
 
 uint8_t myCityHash(uint64_t key, uint8_t seed) 
-{
+{//用来计算那个slot的hash值的;
     return (uint8_t)(CityHash<uint64_t>(key, (uint64_t) seed) & 0x3);
 }
 
@@ -58,7 +58,7 @@ int run()
     std::random_device rd;
     
     std::mt19937 gen(seed);
-    std::uniform_int_distribution<> dis(1,INT_MAX);
+    std::uniform_int_distribution<> dis(1,INT_MAX);//random number
 
     printf("***********************\n\n");
     printf("***:Summary: \n");
@@ -67,7 +67,7 @@ int run()
     
     
 
-    // create the table;
+    // create the table; // you may ask why we still need a cuckoo table, 'cause we have to imitate the real scene that we know the full key when there is a false positive.
     HTmap<int64_t,int> cuckoo(num_way,num_cells,ht_size,1000);
     printf("\n***Cuckoo table \n");
     printf("***:way: %d\n",num_way);
@@ -81,7 +81,7 @@ int run()
         for (int ii = 0;  ii <num_cells;  ii++){
             FF[i][ii]= new int[ht_size];
         }
-    }
+    }//fingerprint for all pairs.
 
     printf("***:ACF:\n");
     printf("***:fingerprint bits: %d\n",f);
@@ -100,7 +100,7 @@ int run()
         int64_t max_FF_FP=0;
         int64_t min_FF_FP=INT_MAX;
         int64_t tot_count=0;
-        for (int loop=0; loop<max_loop; loop++) {
+        for (int loop=0; loop<max_loop; loop++) {// test start ...
             int64_t sample_FF_FP=0;
             cuckoo.clear();
             S_map.clear();
@@ -108,7 +108,7 @@ int run()
             A_ar.clear();
             bool fail_insert=false;
 
-            //clear FF;
+            //clear FF; //clear all the fingerprint stored in the FF table.
             for (int i = 0;  i <num_way;  i++) 
                 for (int ii = 0;  ii <num_cells;  ii++)
                     for (int iii = 0;  iii <ht_size;  iii++){
@@ -152,18 +152,18 @@ int run()
             printf("items= %d\n",cuckoo.get_nitem());
             printf("load(%d)= %f \n",loop,cuckoo.get_nitem()/(0.0+cuckoo.get_size()));
 	    
-            cuckoo.stat();
+            cuckoo.stat();// generate the test keys, and put them all in S_map, mey includes some insert failed keys.
 
             //insert in ACF
             for (auto x: S_map)
             {
-                auto res= cuckoo.fullquery(x.first);
+                auto res= cuckoo.fullquery(x.first);// res is the x.first's value and address.
                 FF[std::get<1>(res)][std::get<2>(res)][std::get<3>(res)]=fingerprint(x.first,std::get<2>(res),f);
-                //verprintf("item %ld is in FF[%d][%d][%d] with fingerprint %d\n",key,std::get<1>(res),std::get<2>(res),std::get<3>(res),fingerprint(key));
-            }//这是把原本所有cuckoo的东西都复制过来;
+                // verprintf("item %ld is in FF[%d][%d][%d] with fingerprint %d\n",key,std::get<1>(res),std::get<2>(res),std::get<3>(res),fingerprint(key));
+            }   // 这是把原本所有cuckoo的东西都复制过来;
             printf("Inserted in ACF\n");
 
-            // consistency check !!!
+            // consistency check !!!// no necessary.
             /*for (auto x: S_map) {
                 bool flagFF = false;
                 for (int i = 0; i < num_way; i++) {
@@ -182,11 +182,11 @@ int run()
             printf("1st Consistency passed\n");*/
 	        
             
-            //create A set
+            //create A set// just generate the keys that are not in S_map just now.
             for (int64_t i = 0;  i < A; i++) {
                 unsigned int key = (unsigned int) dis(gen);
                 if ((A_map.count(key) > 0) || (S_map.count(key) > 0)) //不允许有过去是重复的,就是找那种肯定不在cuckoo里面的key;
-                {
+                {//count's role is just reply yes or not, nothing else;
                     i--;
                     continue;
                 }
@@ -214,8 +214,8 @@ int run()
 
             //test A set
             for(int64_t iter=0; iter<num_iter; iter++){
-               int64_t key= A_ar[ rand() % ar_size];
-            //for (auto key: A_ar) {
+               int64_t key= A_ar[ rand() % ar_size];// random order when you test the elements in A.
+              //for (auto key: A_ar) {
                 // ACF query
                 count++;
                 tot_count++;
@@ -223,12 +223,12 @@ int run()
                 int false_i = -1;
                 int false_ii = -1;
                 for (int i = 0; i < num_way; i++) {
-                    int p = hashg(key, i, ht_size);//桶
-                    for (int ii = 0; ii < num_cells; ii++) {
-                        if (fingerprint(key, ii, f) == FF[i][ii][p]) {
+                    int p = hashg(key, i, ht_size);//桶's index
+                    for (int ii = 0; ii < num_cells; ii++) {//grace
+                        if (fingerprint(key, ii, f) == FF[i][ii][p]) {//just test fingerprint same or not.
                             flagFF = true;
                             false_i = i;
-                            false_ii = ii;
+                            false_ii = ii;//false positive generated.
                         }
                     }
                 }
@@ -245,16 +245,18 @@ int run()
                 {
                     num_swap++;
                     int p = hashg(key,false_i,ht_size);
-                    int64_t key1= cuckoo.get_key(false_i,false_ii,p);
-                    int value1=cuckoo.query(key1);
-                    int jj=false_ii;
+                    //int64_t key1= cuckoo.get_key(false_i,false_ii,p);
+                    //int value1=cuckoo.query(key1);
+                    //int jj=false_ii; //find false positive's address. 
 
-                    int newseed = cuckoo.updateseed(false_i, p);
+                    //int newseed = cuckoo.updateseed(false_i, p);
+                    cuckoo.updateseed(false_i, p);// change the p's all slots' seed, re-order them.
+
 
                     for (int slot = 0; slot < num_cells; ++slot) {
-                        int64_t key2 = cuckoo.get_key(false_i,slot,p);
-                        //int value2 = cuckoo.query(key2);
-                        FF[false_i][slot][p] = fingerprint(key2,slot,f);
+                        int64_t key2 = cuckoo.get_key(false_i,slot,p);// get key.
+                        //int value2 = cuckoo.query(key2); fine.
+                        FF[false_i][slot][p] = fingerprint(key2,slot,f);//re-write all fingerprints in FF.
                     }
 
                     /*
