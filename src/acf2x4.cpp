@@ -17,7 +17,7 @@ int seed;
 int num_way=2;      //# of ways (hash functions)
 int num_cells=4;  //# of slots in a rows
 int ht_size=1024; //# of rows
-int f=9; //# of fingerprint bits
+int f=8; //# of fingerprint bits
 
 int max_loop=2;    //num of trials
 int load_factor=95;    //load factor
@@ -208,8 +208,8 @@ int run()
 
             //test A set
             for(int64_t iter=0; iter<num_iter; iter++){
-               int64_t key= A_ar[ rand() % ar_size];
-            //for (auto key: A_ar) {
+               int64_t key= A_ar[rand() % ar_size];
+                //for (auto key: A_ar) {
                 // ACF query
                 count++;
                 tot_count++;
@@ -286,6 +286,40 @@ int run()
             if (!quiet) fprintf(stderr, "\n");
             printf("2nd Consistency passed\n");
             */
+
+            //test A set agian for flase positive rate testing.
+            sample_FF_FP = 0;
+            count = 0;
+            for(int64_t iter=0; iter<num_iter; iter++){
+               int64_t key= A_ar[rand() % ar_size];
+                //for (auto key: A_ar) {
+                // ACF query
+                count++;
+                tot_count++;
+                bool flagFF = false;
+                int false_i = -1;
+                int false_ii = -1;
+                for (int i = 0; i < num_way; i++) {
+                    int p = hashg(key, i, ht_size);//桶
+                    for (int ii = 0; ii < num_cells; ii++) {
+                        if (fingerprint(key, ii, f) == FF[i][ii][p]) {
+                            flagFF = true;
+                            false_i = i;
+                            false_ii = ii;
+                        }
+                    }
+                }
+                if ((count % 1000) == 0) {
+                    if (!quiet) fprintf(stderr, "loop: %d. check the %lu element of A set\r", loop, count);
+                }
+                if (flagFF) {
+                    tot_FF_FP++;
+                    sample_FF_FP++;
+                }
+
+            }
+
+
             printf("ACF FP: %lu : %.6f \n",sample_FF_FP,sample_FF_FP/(count+0.0));
             if (sample_FF_FP<min_FF_FP) min_FF_FP=sample_FF_FP;
             if (sample_FF_FP>max_FF_FP) max_FF_FP=sample_FF_FP;

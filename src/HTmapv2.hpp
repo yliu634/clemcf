@@ -228,10 +228,10 @@ HTmap<key_type,value_type>::HTmap(int way, int buckets, int hsize,int t)//tå°±æ˜
       }
   }
 
-  int8_t ** ludo_seed = new int8_t*[K];
+  ludo_seed = new uint8_t*[K];
   for (int i = 0; i < K; i++) {
-      ludo_seed[i] = new int8_t[m];
-      for (int j = 0; j < b; j++) {
+      ludo_seed[i] = new uint8_t[m];
+      for (int j = 0; j < m; j++) {
           ludo_seed[i][j] = 0;
       }
   }
@@ -389,6 +389,7 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
         victim_value=value;
         return true;
     }   // insert cannot support update.
+    
     for (int i = 0;  i <K;  i++) {
         int p = myhash<key_type>(key,i,m);  // p is bucket index.
         int seed = ludo_seed[i][p]; 
@@ -417,17 +418,16 @@ bool HTmap<key_type,value_type>::insert(key_type key,value_type value)
         // search for empty places
         for (int i = 0;  i <K;  i++){
             int p = myhash<key_type>(key,i,m);
-            int seed = ludo_seed[i][p];
-            int ii = myCityHash<key_type>(key, seed);   //
-            if (!present_table[i][ii][p]) {
+
+        for (int ii = 0;  ii <b;  ii++)
+            if (!present_table[i][ii][p]) {  //insert in an empty place
                 present_table[i][ii][p] = true;
                 table[i][ii][p]={key,value};
                 updateseed(i, p);
                 num_item++;
                 return true;
             }
-
-            /*
+        /*
             for (int ii = 0;  ii <b;  ii++)
                 if (!present_table[i][ii][p]) {  //insert in an empty place
                     present_table[i][ii][p] = true;

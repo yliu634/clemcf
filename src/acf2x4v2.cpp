@@ -130,7 +130,6 @@ int run()
                 if ((i%1000)==0) {
                     if (!quiet) fprintf(stderr,"loop: %d item: %lu\r",loop,i);
                 }
-
                 // insert in cuckoo HTmap
                 if(!cuckoo.insert(key,line))
                 {
