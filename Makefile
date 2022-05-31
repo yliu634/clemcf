@@ -1,6 +1,6 @@
 SRCDIR=src
 OBJDIR=build
-CXX=g++
+CXX=g++ 
 
 NO_COLOR=\x1b[0m
 OK_COLOR=\x1b[32;01m

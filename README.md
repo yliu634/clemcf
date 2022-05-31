@@ -1,7 +1,7 @@
 # ACF
 
 This is the repository for the Adaptive Cuckoo Filter simulator code presented in the 2018 Proceedings of the Twentieth Workshop on Algorithm Engineering and Experiments (ALENEX). The paper is available [here](https://epubs.siam.org/doi/pdf/10.1137/1.9781611975055.4).
-The code also includes an extension that use fingerprints with different ranges, described in and extended version of the paper that is under submission at the ACM Journal of Experimental Algorithmics (JEA).     
+The code also includes an extension that use fingerprints with different ranges, described in and extended version of the paper that is under submission at the ACM Journal of Experimental Algorithmics.     
 
 # Getting Started
 
