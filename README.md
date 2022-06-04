@@ -9,7 +9,7 @@ The simulator has been developed on Ubuntu 12.04. Other distributions or version
 
 # Building
 
-Run the following commands in the ACF directory to build everything:
+Run the following commands in the ACF directory to build: 
 
 ```
 $ make
