@@ -1,14 +1,20 @@
 #include "HTmap.hpp"
 #include "utils.h"
-#include <string.h>
+#include <cstring>
 #include <iostream>
 #include <vector>
 #include <map>
-#include <time.h>
+#include <ctime>
 #include <limits.h>
 #include <random> // http://en.cppreference.com/w/cpp/numeric/random
 #include <algorithm>
+#include <cassert>
+#include <cstdio>
+#include <fstream>
+#include <unordered_map>
 
+unordered_map<int64_t, vector<unsigned int>> conf;
+FILE *pfile;
 bool quiet=false;
 //int verbose=0; // define the debug level
 int seed;
@@ -18,10 +24,11 @@ int num_way=2;      //# of ways (hash functions)
 int num_cells=4;  //# of slots in a rows
 int ht_size=1024; //# of rows
 int f=9; //# of fingerprint bits
-
 int max_loop=2;    //num of trials
 int load_factor=95;    //load factor
 int AS=32;
+uint64_t AT= 1ULL << 24;
+uint64_t S=0;
 int A=0;
 //int npf=1000;
 int npf=10;
@@ -78,9 +85,9 @@ int run()
         }
     }
 
-    int8_t ** SS=new int8_t*[num_way];
+    int ** SS=new int*[num_way];
     for (int i = 0; i < num_way; i++) {
-        SS[i] = new int8_t[ht_size];
+        SS[i] = new int[ht_size];
     }
 
     printf("***:ACF:\n");
@@ -100,8 +107,8 @@ int run()
         int64_t max_FF_FP=0;
         int64_t min_FF_FP=INT_MAX;
         int64_t tot_count=0;
-        for (int loop=0; loop<max_loop; loop++) {
-            int64_t sample_FF_FP=0;
+        for (int loop=0; loop<1; loop++) {
+            int64_t sample_FF_FP=1;
             cuckoo.clear();
             S_map.clear();
             A_map.clear();
@@ -111,16 +118,14 @@ int run()
             //clear FF;
             for (int i = 0;  i <num_way;  i++) 
                 for (int ii = 0;  ii <num_cells;  ii++)
-                    for (int iii = 0;  iii <ht_size;  iii++){
+                    for (int iii = 0;  iii <ht_size;  iii++)
                         FF[i][ii][iii]=-1;
-                    }
+                    
             //initialized seed table;
-            for (int i = 0; i<num_way; i++) {
-                for (int iii = 0; iii <ht_size; iii++){
+            for (int i = 0; i<num_way; i++) 
+                for (int iii = 0; iii <ht_size; iii++)
                     SS[i][iii] =0;
-                }
-            }    
-
+                
 
             for (int64_t i = 0;  i <tot_i;  i++)
             {
@@ -172,23 +177,7 @@ int run()
             }//这是把原本所有cuckoo的东西都复制过来;
             printf("Inserted in ACF\n");
 
-            // consistency check !!!
-            /*for (auto x: S_map) {
-                bool flagFF = false;
-                for (int i = 0; i < num_way; i++) {
-                    int p = hashg(x.first, i, ht_size);
-                    for (int ii = 0; ii < num_cells; ii++) {
-                        if (fingerprint(x.first, ii, f) == FF[i][ii][p]) {
-                            flagFF = true;
-                    }
-                }
-                if (!flagFF) {
-                    printf("Consistency ERROR 1 \n");
-                    exit(1);
-                }
-            }
-            printf("1st Consistency passed\n");
-	    */
+           
             //create A set
             for (int64_t i = 0;  i < A; i++) {
                 unsigned int key = (unsigned int) dis(gen);
@@ -217,135 +206,154 @@ int run()
 
             int64_t count=0;
             int64_t ar_size=A_ar.size();
+            bool flagFF = false;
             num_iter=npf*ar_size;   //总共测量num_iter多少次;
 
             //test A set
-            for(int64_t iter=0; iter<num_iter; iter++){
-               int64_t key= A_ar[ rand() % ar_size];
-            //for (auto key: A_ar) {
-                // ACF query
-                count++;
-                tot_count++;
-                bool flagFF = false;
-                int false_i = -1;
-                int false_ii = -1;
-                int false_iii = -1;
-                for (int i = 0; i < num_way; i++) {
-                    int p = hashg(key, i, ht_size);//桶
-                    for (int ii = 0; ii < num_cells; ii++) {
-                        if (fingerprint(key, SS[i][p], f) == FF[i][ii][p]) {
-                            flagFF = true;
-                            false_i = i;
-                            false_ii = ii;
-                            false_iii = p;
-                        }
-                    }
-                }
-                if ((count % 1000) == 0) {
-                    if (!quiet) fprintf(stderr, "loop: %d. check the %lu element of A set\r", loop, count);
-                }
-                if (flagFF) {
-                    tot_FF_FP++;
-                    sample_FF_FP++;
-                }
-
-                //SWAP
-                if (flagFF)
-                {
-                    num_swap++;
-                    int p = hashg(key,false_i,ht_size);
-                    int64_t key1= cuckoo.get_key(false_i,false_ii,p);
-                    int value1=cuckoo.query(key1);
-                    int jj=false_ii;
-
-                    SS[false_i][p] ++;
-                    for (int i = 0; i < num_cells; i++) {
-                        int64_t key2= cuckoo.get_key(false_i,i,p);
-                        FF[false_i][false_ii][p] = fingerprint(key2, SS[false_i][p], f);
-                    }
-
-                    /*
-                    while (jj==false_ii) jj=std::rand()%num_cells;
-                    int64_t key2= cuckoo.get_key(false_i,jj,p);
-                    int value2=cuckoo.query(key2);
-                    if (!cuckoo.remove(key1)) {// false_ii is free
-                        printf("false_ii is free\n");
-                    }
-                    if (!cuckoo.remove(key2)) // jj is free
-                    {
-                        FF[false_i][false_ii][p]=-1;
-                    }
-                    else 
-                    {
-                        cuckoo.direct_insert(key2,value2,false_i,false_ii);
-                        FF[false_i][false_ii][p]=fingerprint(key2,false_ii,f);
-                    }
-                    cuckoo.direct_insert(key1,value1,false_i,jj);
-                    FF[false_i][jj][p]=fingerprint(key1,jj,f);
-                    */
-                }
-            }
-            // consistency check after moving items!!!
-            /*
-            for (auto x: S_map) {
-                bool flagFF = false;
-                for (int i = 0; i < num_way; i++) {
-                    int p = hashg(x.first, i, ht_size);
-                    for (int ii = 0; ii < num_cells; ii++) {
-                        if (fingerprint(x.first, ii, f) == FF[i][ii][p]) {
-                            flagFF = true;
-                        }
-                }
-                if (!(cuckoo.count(x.first)>0)) {
-                    printf("Consistency ERROR 3 \n");
-                    exit(1);
-                }
-                if (!flagFF) {
-                    printf("Consistency ERROR 2 (key: %ld)\n",x.first);
-                    exit(1);
-                }
-            }
+            for(uint ppp = 0; ppp < 1; ppp ++) {
+            //while (sample_FF_FP != 0) {
+                count = 0;
             
-            if (!quiet) fprintf(stderr, "\n");
-            printf("2nd Consistency passed\n");
-            */
-
-            //test A set agian for flase positive rate testing.
-            sample_FF_FP = 0;
-            count = 0;
-            for(int64_t iter=0; iter<num_iter; iter++){
-               int64_t key= A_ar[rand() % ar_size];
-                //for (auto key: A_ar) {
-                // ACF query
-                count++;
-                tot_count++;
-                bool flagFF = false;
-                int false_i = -1;
-                int false_ii = -1;
-                for (int i = 0; i < num_way; i++) {
-                    int p = hashg(key, i, ht_size);//桶
-                    for (int ii = 0; ii < num_cells; ii++) {
-                        if (fingerprint(key, ii, f) == FF[i][ii][p]) {
-                            flagFF = true;
-                            false_i = i;
-                            false_ii = ii;
+                for(int64_t iter=0; iter<ar_size; iter++) {
+                    int64_t key= A_ar[iter];
+                    //for (auto key: A_ar) {
+                    // ACF query
+                    count++;
+                    tot_count++;
+                    flagFF = false;
+                    int false_i = -1;
+                    int false_ii = -1;
+                    int false_iii = -1;
+                    for (int i = 0; i < num_way; i++) {
+                        int p = hashg(key, i, ht_size);//桶
+                        conf[i*ht_size + p].push_back(key);
+                        for (int ii = 0; ii < num_cells; ii++) {
+                            if (fingerprint(key, SS[i][p], f) == FF[i][ii][p]) {
+                                //printf("FF is :%d; ", FF[i][ii][p]);
+                                flagFF = true;
+                                false_i = i;
+                                false_ii = ii;
+                                false_iii = p;
+                                //conf[false_i*ht_size + false_iii].push_back(key);
+                            } 
                         }
                     }
-                }
-                if ((count % 1000) == 0) {
-                    if (!quiet) fprintf(stderr, "loop: %d. check the %lu element of A set\r", loop, count);
-                }
-                if (flagFF) {
-                    tot_FF_FP++;
-                    sample_FF_FP++;
+                    if ((count % 1000) == 0) {
+                        if (!quiet) fprintf(stderr, "loop: %d. check the %lu element of A set\r", loop, count);
+                    }
+                    //if (flagFF) {
+                        //tot_FF_FP++;
+                    //    sample_FF_FP++;
+                    //}
+
+                    //SWAP
+                    /*
+                    if (flagFF)
+                    {
+                        num_swap++;
+                        int p = false_iii;//hashg(key,false_i,ht_size);
+                        //int64_t key1= cuckoo.get_key(false_i,false_ii,p);
+                        //int value1=cuckoo.query(key1);
+                        //int jj=false_ii;
+                        //printf("At first this seed is: %d; ", SS[false_i][p]);
+                        SS[false_i][p] ++;
+                        //printf("After this seed is: %d\n", SS[false_i][p]);
+                        for (int i = 0; i <num_cells; i++) {
+                            int64_t key2= cuckoo.get_key(false_i,i,p);
+                            FF[false_i][false_ii][p]=fingerprint(key2, SS[false_i][p], f);
+                        }
+                    }*/
                 }
 
+                for (auto it = conf.cbegin(); it != conf.cend(); it++) {
+                    int false_i = it->first / ht_size;
+                    int bucket = it->first % ht_size;
+                    //vector<unsigned int> vkey = conf[qq].second;
+                    //SS[false_i][bucket] ++;
+
+                    flagFF = true;
+                    while (flagFF!= false) {
+                        for (uint bb = 0; bb < it->second.size(); bb++) {
+                            flagFF = false;
+                            int key= it->second[bb];
+                            for (int ii = 0; ii < num_cells; ii++) {
+                                if (fingerprint(key, SS[false_i][bucket], f) == FF[false_i][ii][bucket]) {
+                                    flagFF = true;
+                                    break;
+                                }
+                            }
+                        
+                            if (flagFF) {
+                                SS[false_i][bucket] ++;
+                                for (int ii = 0; ii <num_cells; ii++) {
+                                    int64_t key2= cuckoo.get_key(false_i,ii,bucket);
+                                    FF[false_i][ii][bucket]=fingerprint(key2, SS[false_i][bucket], f);
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                }
+
+                
+                std::ofstream opp("myfile.txt", std::ofstream::out);
+                int oppb(0);
+                for (auto it = conf.begin(); it != conf.end(); it++) {
+                    int false_i = it->first / ht_size;
+                    int bucket = it->first % ht_size;
+                    //printf("%d ", SS[false_i][bucket]);
+                    if (SS[false_i][bucket] == 0)
+                        continue;
+                    oppb ++;
+                    opp << to_string(SS[false_i][bucket]);
+                    opp << " ";
+                }
+                printf("There are %d buckets false positive.\n", oppb/(num_way*ht_size+0.0));
+                opp.close();
+
+
+
+
+                //test A set agian for false positive rate testing.
+                sample_FF_FP = 0;
+                count = 0;
+                for(int64_t iter=0; iter<ar_size; iter++) {
+                    int64_t key= A_ar[iter];
+                    // For (auto key: A_ar) {
+                    // ACF query
+                    count++;
+                    tot_count++;
+                    flagFF = false;
+                    int false_i = -1;
+                    int false_ii = -1;
+                    int false_iii = -1;
+                    for (int i = 0; i < num_way; i++) {
+                        int p = hashg(key, i, ht_size);
+                        for (int ii = 0; ii < num_cells; ii++) {
+                            if (fingerprint(key, SS[i][p], f) == FF[i][ii][p]) {
+                                flagFF = true;
+                                //false_i = i;
+                                //false_ii = ii;
+                            }
+                        }
+                    }
+                    if ((count % 1000) == 0) {
+                        if (!quiet) fprintf(stderr, "loop: %d. check the %lu element of A set\r", loop, count);
+                    }
+                    if (flagFF) {
+                        //tot_FF_FP++;
+                        sample_FF_FP++;
+                    }
+                }
+
+
+                printf("ACF FP in this loop: %lu : %.6f \n", sample_FF_FP,sample_FF_FP/(count+0.0));
+
+                if (sample_FF_FP<min_FF_FP) min_FF_FP=sample_FF_FP;
+                if (sample_FF_FP>max_FF_FP) max_FF_FP=sample_FF_FP;
             }
 
-
-            printf("ACF FP: %lu : %.6f \n",sample_FF_FP,sample_FF_FP/(count+0.0));
-            if (sample_FF_FP<min_FF_FP) min_FF_FP=sample_FF_FP;
-            if (sample_FF_FP>max_FF_FP) max_FF_FP=sample_FF_FP;
         }// end main loop
             
         printf("---------------------------\n");
@@ -448,18 +456,27 @@ void init(int argc, char* argv[])
         }
         argv= argv + flag;
     }
-    A=ht_size*num_way*num_cells*AS;
+
+    AS = 1ULL << AS;
+    A=AT*AS/(AS + 1.0);
+    S=AT-A;
+    while(num_way * num_cells * ht_size * load_factor < S) {
+        ht_size *= 2;
+    }
+    //A=ht_size*num_way*num_cells*AS;
     //Print general parameters
     printf("general parameters: \n");
-    max_loop= 250*(1<<((f-8)/2))/AS; 
+    //max_loop= 250*(1<<((f-8)/2))/AS; 
+    max_loop=4;
     printf("seed: %d\n",seed);
     printf("way: %d\n",num_way);
     printf("num_cells: %d\n",num_cells);
-    printf("Table size: %d\n",ht_size);
+    printf("ht_size: %d\n",ht_size);
     printf("A size: %d\n",A);
+    printf("S size: %d\n",S);
     printf("iterations: %d\n",max_loop);
-    printf("AS ratio: %d\n",AS);
-    printf("npf: %d\n",npf);
+    printf("AS ratio: 2^%d\n",AS);
+    //printf("npf: %d\n",npf);
     printf("---------------------------\n");
 
 

@@ -48,6 +48,7 @@ int hashg(int64_t key, int i, int s)
        if (i==0) val=val0;
        if (i==1) val=val1;
        if (i>1)  val=CityHash64WithSeed(key+i,37*i) % ss;
+       //uint64_t val=CityHash64WithSeed(key+i,37*i) % s;
        return (val %ss);
 }
 
